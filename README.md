@@ -15,40 +15,49 @@ import xyz.ferus.thumper.queue.Subscription;
 public class Example {
 
     public static void main(String[] args) throws Exception {
+        // Create a Rabbit instance with the default configuration (and pooled channels)
         RabbitBuilder builder = Rabbit.builder().pooled();
-
         Rabbit rabbit = builder.build().join();
-        rabbit.codecs().register(new SimpleMessageCodec());
 
-        DirectExchange exchange = rabbit.direct("direct_exchange").join();
-        DirectQueue queue = exchange.newQueue("direct_queue").join();
+        // Register the codec for LoggingMessage
+        rabbit.codecs().register(new LoggingMessageCodec());
 
-        Subscription subscription = queue.subscribe(SimpleMessage.class, message -> System.out.println("Message received: " + message.message())).join();
-        exchange.publish("direct_queue", new SimpleMessage("Hello, world!")).join();
+        // Create a direct exchange named "logging"
+        DirectExchange logging = rabbit.direct("logging").join();
 
+        // Create a queue routed to the "info" key on the "logging" exchange
+        DirectQueue infoQueue = logging.newQueue("info").join();
+
+        // Subscribe to the info queue and print incoming messages
+        Subscription subscription = infoQueue.subscribe(LoggingMessage.class, message -> System.out.println("[INFO] " + message.message())).join();
+
+        // Publish a message to the logging exchange routed to the "info" key
+        logging.publish("info", new LoggingMessage("Hello World!")).join();
+
+        // All done!
         subscription.close();
-        queue.close();
-        exchange.close();
+        infoQueue.close();
+        logging.close();
         rabbit.close();
     }
 
-    public record SimpleMessage(String message) {}
+    public record LoggingMessage(String message) {}
 
-    public static class SimpleMessageCodec implements Codec<SimpleMessage> {
+    public static class LoggingMessageCodec implements Codec<LoggingMessage> {
 
         @Override
-        public Class<SimpleMessage> type() {
-            return SimpleMessage.class;
+        public Class<LoggingMessage> type() {
+            return LoggingMessage.class;
         }
 
         @Override
-        public byte[] encode(SimpleMessage object) {
+        public byte[] encode(LoggingMessage object) {
             return object.message().getBytes(StandardCharsets.UTF_8);
         }
 
         @Override
-        public SimpleMessage decode(byte[] bytes) {
-            return new SimpleMessage(new String(bytes, StandardCharsets.UTF_8));
+        public LoggingMessage decode(byte[] bytes) {
+            return new LoggingMessage(new String(bytes, StandardCharsets.UTF_8));
         }
     }
 }
