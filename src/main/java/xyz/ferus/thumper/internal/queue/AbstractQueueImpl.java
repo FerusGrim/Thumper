@@ -93,11 +93,13 @@ public abstract class AbstractQueueImpl implements Queue {
             return;
         }
 
-        this.rabbit.executeChannel(channel -> {
-            String newConsumerTag = registerConsumer(channel, type, consumer);
-            updating.channelChanged(channel, newConsumerTag);
-            this.subscriptions.put(newConsumerTag, updating);
-        }).join();
+        this.rabbit
+                .executeChannel(channel -> {
+                    String newConsumerTag = registerConsumer(channel, type, consumer);
+                    updating.channelChanged(channel, newConsumerTag);
+                    this.subscriptions.put(newConsumerTag, updating);
+                })
+                .join();
     }
 
     @Override
@@ -110,7 +112,8 @@ public abstract class AbstractQueueImpl implements Queue {
         });
     }
 
-    private <T> String registerConsumer(Channel channel, Class<T> type, QueueConsumer<T> consumer) throws EncodingException, IOException {
+    private <T> String registerConsumer(Channel channel, Class<T> type, QueueConsumer<T> consumer)
+            throws EncodingException, IOException {
         Codec<T> codec = this.rabbit.codecs().get(type);
         DeliverCallbackImpl<T> callback = new DeliverCallbackImpl<>(codec, consumer);
         return channel.basicConsume(this.name(), callback, removing -> cancelCallback(removing, type, consumer));
