@@ -26,30 +26,27 @@ package xyz.ferus.thumper.internal.util;
 
 import java.io.PrintStream;
 import java.util.List;
+import xyz.ferus.thumper.RabbitException;
 
-public class CompositeException extends Exception {
+public class CompositeException extends RabbitException {
 
-    private final List<Exception> exceptions;
+    private final List<? extends Throwable> exceptions;
 
-    public CompositeException(List<Exception> exceptions) {
+    public CompositeException(List<? extends Throwable> exceptions) {
+        super("Caught multiple exceptions: " + exceptions);
         this.exceptions = exceptions;
     }
 
     @Override
-    public void printStackTrace(PrintStream s) {
-        super.printStackTrace(s);
-        for (Exception exception : this.exceptions) {
-            s.println("Nested exception: ");
-            exception.printStackTrace(s);
-        }
+    @SuppressWarnings("CallToPrintStackTrace")
+    public void printStackTrace() {
+        super.printStackTrace();
+        this.exceptions.forEach(Throwable::printStackTrace);
     }
 
     @Override
-    public String getMessage() {
-        StringBuilder builder = new StringBuilder();
-        for (Exception exception : this.exceptions) {
-            builder.append(exception.getMessage()).append("\n");
-        }
-        return builder.toString();
+    public void printStackTrace(PrintStream ps) {
+        super.printStackTrace(ps);
+        this.exceptions.forEach(e -> e.printStackTrace(ps));
     }
 }

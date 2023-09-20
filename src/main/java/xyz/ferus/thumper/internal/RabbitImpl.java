@@ -31,7 +31,6 @@ import java.util.concurrent.ExecutorService;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import xyz.ferus.thumper.RabbitException;
 import xyz.ferus.thumper.codec.CodecRegistry;
-import xyz.ferus.thumper.internal.util.ExceptionalHandler;
 
 public class RabbitImpl extends AbstractRabbitImpl {
 
@@ -60,9 +59,7 @@ public class RabbitImpl extends AbstractRabbitImpl {
     }
 
     @Override
-    protected void closeInternal(ExceptionalHandler handler) {
-        if (this.channel != null) {
-            handler.add(this.channel::close);
-        }
+    protected void closeInternal() throws Exception {
+        this.channel.close();
     }
 }

@@ -24,33 +24,32 @@
  */
 package xyz.ferus.thumper.internal.util;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
-public class ExceptionalHandler {
+public class ExceptionCatcher {
 
-    private final List<ExceptionalRunnable> tasks;
+    private final List<Exception> errors;
 
-    public ExceptionalHandler() {
-        this.tasks = new LinkedList<>();
+    public ExceptionCatcher() {
+        this.errors = new LinkedList<>();
     }
 
-    public void add(ExceptionalRunnable task) {
-        this.tasks.add(task);
-    }
-
-    public void execute() throws CompositeException {
-        List<Exception> exceptions = new LinkedList<>();
-        for (ExceptionalRunnable task : this.tasks) {
-            try {
-                task.run();
-            } catch (Exception t) {
-                exceptions.add(t);
-            }
+    public void execute(ExceptionalRunnable task) {
+        try {
+            task.run();
+        } catch (Exception e) {
+            this.errors.add(e);
         }
+    }
 
-        if (!exceptions.isEmpty()) {
-            throw new CompositeException(exceptions);
+    public void validate() throws Exception {
+        if (this.errors.size() == 1) {
+            throw this.errors.get(0);
+        }
+        if (!this.errors.isEmpty()) {
+            throw new CompositeException(new ArrayList<>(this.errors));
         }
     }
 }

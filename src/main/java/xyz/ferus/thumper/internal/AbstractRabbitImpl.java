@@ -43,7 +43,7 @@ import xyz.ferus.thumper.internal.exchange.DirectExchangeImpl;
 import xyz.ferus.thumper.internal.exchange.FanoutExchangeImpl;
 import xyz.ferus.thumper.internal.exchange.TopicExchangeImpl;
 import xyz.ferus.thumper.internal.util.CompositeException;
-import xyz.ferus.thumper.internal.util.ExceptionalHandler;
+import xyz.ferus.thumper.internal.util.ExceptionCatcher;
 
 public abstract class AbstractRabbitImpl implements Rabbit {
 
@@ -98,30 +98,31 @@ public abstract class AbstractRabbitImpl implements Rabbit {
 
     protected abstract Channel provideChannel() throws RabbitException;
 
-    protected abstract void closeInternal(ExceptionalHandler handler);
+    protected abstract void closeInternal() throws Exception;
 
     @Override
     public final void close() throws RabbitException {
-        ExceptionalHandler handler = new ExceptionalHandler();
-        closeInternal(handler);
-        handler.add(this.connection::close);
+        ExceptionCatcher catcher = new ExceptionCatcher();
 
         List<Exchange> exchanges = new ArrayList<>(this.exchanges);
         this.exchanges.clear();
-        exchanges.forEach(exchange -> handler.add(exchange::close));
+        exchanges.forEach(exchange -> catcher.execute(exchange::close));
 
-        handler.add(this.executor::shutdown);
+        catcher.execute(this::closeInternal);
+        catcher.execute(this.connection::close);
+        catcher.execute(this.executor::shutdown);
+
         try {
-            handler.execute();
+            catcher.validate();
         } catch (CompositeException e) {
-            throw new RabbitException("Encountered error(s) while closing the Rabbit implementation.", e);
+            throw e;
+        } catch (Exception e) {
+            throw new RabbitException("Exception occurred whilst closing a Rabbit instance: " + e.getMessage(), e);
         }
     }
 
-    public void close(Exchange exchange) throws Exception {
-        if (this.exchanges.remove(exchange)) {
-            exchange.close();
-        }
+    public void removeExchange(Exchange exchange) {
+        this.exchanges.remove(exchange);
     }
 
     @Override

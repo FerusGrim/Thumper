@@ -34,7 +34,6 @@ import org.apache.commons.pool2.impl.GenericObjectPool;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
 import xyz.ferus.thumper.RabbitException;
 import xyz.ferus.thumper.codec.CodecRegistry;
-import xyz.ferus.thumper.internal.util.ExceptionalHandler;
 
 public class RabbitImplPooled extends AbstractRabbitImpl implements PooledObjectFactory<Channel> {
 
@@ -59,8 +58,8 @@ public class RabbitImplPooled extends AbstractRabbitImpl implements PooledObject
     }
 
     @Override
-    protected void closeInternal(ExceptionalHandler handler) {
-        handler.add(this.channelPool::close);
+    protected void closeInternal() {
+        this.channelPool.close();
     }
 
     @Override

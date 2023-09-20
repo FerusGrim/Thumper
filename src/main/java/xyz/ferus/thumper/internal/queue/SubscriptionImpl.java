@@ -24,6 +24,9 @@
  */
 package xyz.ferus.thumper.internal.queue;
 
+import com.rabbitmq.client.Channel;
+import java.lang.ref.WeakReference;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import xyz.ferus.thumper.internal.AbstractRabbitImpl;
 import xyz.ferus.thumper.queue.Subscription;
 
@@ -31,12 +34,20 @@ public class SubscriptionImpl implements Subscription {
 
     private final AbstractRabbitImpl rabbit;
     private final AbstractQueueImpl queue;
-    private final String consumerTag;
 
-    public SubscriptionImpl(AbstractRabbitImpl rabbit, AbstractQueueImpl queue, String consumerTag) {
+    private WeakReference<Channel> channel;
+    private String consumerTag;
+
+    public SubscriptionImpl(AbstractRabbitImpl rabbit, AbstractQueueImpl queue, Channel channel, String consumerTag) {
         this.rabbit = rabbit;
         this.queue = queue;
+        this.channel = new WeakReference<>(channel);
         this.consumerTag = consumerTag;
+    }
+
+    public void channelChanged(Channel newChannel, String newConsumerTag) {
+        this.channel = new WeakReference<>(newChannel);
+        this.consumerTag = newConsumerTag;
     }
 
     @Override
@@ -45,8 +56,12 @@ public class SubscriptionImpl implements Subscription {
     }
 
     @Override
-    public void close() {
+    public void close() throws Exception {
         this.queue.removeSubscription(this.consumerTag);
-        this.rabbit.executeChannel(channel -> channel.basicCancel(this.consumerTag));
+
+        @Nullable Channel channel = this.channel.get();
+        if (channel != null && channel.isOpen()) {
+            channel.basicCancel(this.consumerTag);
+        }
     }
 }

@@ -34,10 +34,7 @@ public class Example {
         // Publish a message to the logging exchange routed to the "info" key
         logging.publish("info", new LoggingMessage("Hello World!")).join();
 
-        // All done!
-        subscription.close();
-        infoQueue.close();
-        logging.close();
+        // Closing a Rabbit instance will close all exchanges, queues, and subscriptions created by it
         rabbit.close();
     }
 

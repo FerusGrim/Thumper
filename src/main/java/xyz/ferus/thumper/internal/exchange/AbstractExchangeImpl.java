@@ -30,7 +30,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import xyz.ferus.thumper.exchange.Exchange;
 import xyz.ferus.thumper.internal.AbstractRabbitImpl;
 import xyz.ferus.thumper.internal.queue.AbstractQueueImpl;
-import xyz.ferus.thumper.internal.util.ExceptionalHandler;
+import xyz.ferus.thumper.internal.util.ExceptionCatcher;
 import xyz.ferus.thumper.queue.Queue;
 
 public abstract class AbstractExchangeImpl implements Exchange {
@@ -65,14 +65,14 @@ public abstract class AbstractExchangeImpl implements Exchange {
 
     @Override
     public void close() throws Exception {
-        ExceptionalHandler handler = new ExceptionalHandler();
+        ExceptionCatcher catcher = new ExceptionCatcher();
 
         List<Queue> queues = new ArrayList<>(this.queues);
         this.queues.clear();
-        queues.forEach(queue -> handler.add(queue::close));
+        queues.forEach(queue -> catcher.execute(queue::close));
 
-        handler.add(() -> this.rabbit.close(this));
-        handler.execute();
+        catcher.execute(() -> this.rabbit.removeExchange(this));
+        catcher.validate();
     }
 
     protected String[] joinRoutingKeys(String routingKey, String... otherRoutingKeys) {

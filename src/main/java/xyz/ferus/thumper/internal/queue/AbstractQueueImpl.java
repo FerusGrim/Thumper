@@ -24,17 +24,21 @@
  */
 package xyz.ferus.thumper.internal.queue;
 
+import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.DeliverCallback;
 import com.rabbitmq.client.Delivery;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import xyz.ferus.thumper.codec.Codec;
+import xyz.ferus.thumper.codec.EncodingException;
 import xyz.ferus.thumper.internal.AbstractRabbitImpl;
 import xyz.ferus.thumper.internal.exchange.AbstractExchangeImpl;
-import xyz.ferus.thumper.internal.util.ExceptionalHandler;
+import xyz.ferus.thumper.internal.util.ExceptionCatcher;
 import xyz.ferus.thumper.queue.Queue;
 import xyz.ferus.thumper.queue.QueueConsumer;
 import xyz.ferus.thumper.queue.Subscription;
@@ -64,19 +68,17 @@ public abstract class AbstractQueueImpl implements Queue {
 
     @Override
     public void close() throws Exception {
-        ExceptionalHandler handler = new ExceptionalHandler();
-        handler.add(() -> this.exchange.removeQueue(this));
+        ExceptionCatcher catcher = new ExceptionCatcher();
 
         List<Subscription> subscriptions = new ArrayList<>(this.subscriptions.values());
         this.subscriptions.clear();
-        subscriptions.forEach(subscription -> handler.add(subscription::close));
+        subscriptions.forEach(subscription -> catcher.execute(subscription::close));
 
-        handler.execute();
-    }
-
-    protected Subscription registerSubscription(Subscription subscription) {
-        this.subscriptions.put(subscription.consumerTag(), subscription);
-        return subscription;
+        catcher.execute(() -> this.exchange.removeQueue(this));
+        catcher.execute(() -> this.rabbit
+                .executeChannel(channel -> channel.queueDelete(this.name))
+                .join());
+        catcher.validate();
     }
 
     @SuppressWarnings("resource")
@@ -84,14 +86,34 @@ public abstract class AbstractQueueImpl implements Queue {
         this.subscriptions.remove(consumerTag);
     }
 
+    @SuppressWarnings("resource")
+    private <T> void cancelCallback(String consumerTag, Class<T> type, QueueConsumer<T> consumer) {
+        @Nullable SubscriptionImpl updating = (SubscriptionImpl) this.subscriptions.remove(consumerTag);
+        if (updating == null) {
+            return;
+        }
+
+        this.rabbit.executeChannel(channel -> {
+            String newConsumerTag = registerConsumer(channel, type, consumer);
+            updating.channelChanged(channel, newConsumerTag);
+            this.subscriptions.put(newConsumerTag, updating);
+        }).join();
+    }
+
     @Override
     public <T> CompletableFuture<Subscription> subscribe(Class<T> type, QueueConsumer<T> consumer) {
         return this.rabbit().transformChannel(channel -> {
-            Codec<T> codec = this.rabbit().codecs().get(type);
-            String consumerTag = channel.basicConsume(
-                    this.name(), new DeliverCallbackImpl<>(codec, consumer), this::removeSubscription);
-            return this.registerSubscription(new SubscriptionImpl(this.rabbit(), this, consumerTag));
+            String consumerTag = registerConsumer(channel, type, consumer);
+            SubscriptionImpl subscription = new SubscriptionImpl(this.rabbit, this, channel, consumerTag);
+            this.subscriptions.put(consumerTag, subscription);
+            return subscription;
         });
+    }
+
+    private <T> String registerConsumer(Channel channel, Class<T> type, QueueConsumer<T> consumer) throws EncodingException, IOException {
+        Codec<T> codec = this.rabbit.codecs().get(type);
+        DeliverCallbackImpl<T> callback = new DeliverCallbackImpl<>(codec, consumer);
+        return channel.basicConsume(this.name(), callback, removing -> cancelCallback(removing, type, consumer));
     }
 
     public static class DeliverCallbackImpl<T> implements DeliverCallback {
