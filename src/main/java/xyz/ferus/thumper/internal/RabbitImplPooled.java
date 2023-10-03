@@ -26,7 +26,7 @@ package xyz.ferus.thumper.internal;
 
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import org.apache.commons.pool2.PooledObject;
 import org.apache.commons.pool2.PooledObjectFactory;
 import org.apache.commons.pool2.impl.DefaultPooledObject;
@@ -41,7 +41,7 @@ public class RabbitImplPooled extends AbstractRabbitImpl implements PooledObject
 
     public RabbitImplPooled(
             Connection connection,
-            ExecutorService executor,
+            Executor executor,
             CodecRegistry codecRegistry,
             GenericObjectPoolConfig<Channel> poolConfig) {
         super(connection, executor, codecRegistry);

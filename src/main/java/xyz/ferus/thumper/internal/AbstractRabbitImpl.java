@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import xyz.ferus.thumper.Rabbit;
@@ -48,11 +49,11 @@ import xyz.ferus.thumper.internal.util.ExceptionCatcher;
 public abstract class AbstractRabbitImpl implements Rabbit {
 
     private final Connection connection;
-    private final ExecutorService executor;
+    private final Executor executor;
     private final CodecRegistry codecRegistry;
     private final List<Exchange> exchanges;
 
-    protected AbstractRabbitImpl(Connection connection, ExecutorService executor, CodecRegistry codecRegistry) {
+    protected AbstractRabbitImpl(Connection connection, Executor executor, CodecRegistry codecRegistry) {
         this.connection = connection;
         this.executor = executor;
         this.codecRegistry = codecRegistry;
@@ -110,7 +111,11 @@ public abstract class AbstractRabbitImpl implements Rabbit {
 
         catcher.execute(this::closeInternal);
         catcher.execute(this.connection::close);
-        catcher.execute(this.executor::shutdown);
+        catcher.execute(() -> {
+            if (this.executor instanceof ExecutorService service) {
+                service.shutdown();
+            }
+        });
 
         try {
             catcher.validate();

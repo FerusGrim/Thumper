@@ -28,14 +28,17 @@ import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import com.rabbitmq.client.ConnectionFactory;
 import java.io.IOException;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Consumer;
 import org.apache.commons.pool2.impl.GenericObjectPoolConfig;
+import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import xyz.ferus.thumper.codec.CodecRegistry;
+import xyz.ferus.thumper.internal.DirectExecutor;
 import xyz.ferus.thumper.internal.RabbitImpl;
 import xyz.ferus.thumper.internal.RabbitImplPooled;
 import xyz.ferus.thumper.internal.SharedThreadFactory;
@@ -46,19 +49,14 @@ import xyz.ferus.thumper.internal.SharedThreadFactory;
 public class RabbitBuilder {
 
     /**
-     * The default thread factory.
+     * The connection factory configurator.
      */
-    private static final ThreadFactory DEFAULT_THREAD_FACTORY = new SharedThreadFactory();
+    @MonotonicNonNull private Consumer<ConnectionFactory> connectionFactoryConfigurator = null;
 
     /**
-     * The connection factory.
+     * The executor.
      */
-    private ConnectionFactory connectionFactory = new ConnectionFactory();
-
-    /**
-     * The thread factory.
-     */
-    private ThreadFactory threadFactory = DEFAULT_THREAD_FACTORY;
+    @MonotonicNonNull private Executor executor = null;
 
     /**
      * The codec registry.
@@ -66,32 +64,43 @@ public class RabbitBuilder {
     private CodecRegistry codecRegistry = CodecRegistry.defaultRegistry();
 
     /**
-     * The channel pool config.
+     * The channel pool configurator.
      */
-    @Nullable private GenericObjectPoolConfig<Channel> channelPoolConfig = null;
+    @MonotonicNonNull private Consumer<GenericObjectPoolConfig<Channel>> channelPoolConfigurator = null;
 
     RabbitBuilder() {}
 
     /**
-     * Sets the connection factory.
-     *
-     * @param connectionFactory the connection factory
+     * Configures the connection factory.
+     * @param connectionFactoryConfigurator the connection factory configurator
      * @return this builder
      */
-    public RabbitBuilder connection(ConnectionFactory connectionFactory) {
-        this.connectionFactory = connectionFactory;
+    public RabbitBuilder connection(Consumer<ConnectionFactory> connectionFactoryConfigurator) {
+        if (this.connectionFactoryConfigurator == null) {
+            this.connectionFactoryConfigurator = connectionFactoryConfigurator;
+        } else {
+            this.connectionFactoryConfigurator =
+                    this.connectionFactoryConfigurator.andThen(connectionFactoryConfigurator);
+        }
         return this;
     }
 
     /**
-     * Sets the thread factory.
-     *
-     * @param threadFactory the thread factory
+     * Sets the executor.
+     * @param executor the executor
      * @return this builder
      */
-    public RabbitBuilder threads(ThreadFactory threadFactory) {
-        this.threadFactory = threadFactory;
+    public RabbitBuilder executor(Executor executor) {
+        this.executor = executor;
         return this;
+    }
+
+    /**
+     * Sets the executor service to a blocking executor.
+     * @return this builder
+     */
+    public RabbitBuilder blockingExecutor() {
+        return executor(DirectExecutor.INSTANCE);
     }
 
     /**
@@ -100,18 +109,29 @@ public class RabbitBuilder {
      * @return this builder
      */
     public RabbitBuilder pooled() {
-        return pooled(new GenericObjectPoolConfig<>());
+        initializeChannelPoolConfigurator();
+        return this;
     }
 
     /**
-     * Sets the channel pool config.
-     *
-     * @param channelPoolConfig the channel pool config
+     * Configures the channel pool config.
+     * @param channelPoolConfigurator the channel pool configurator
      * @return this builder
      */
-    public RabbitBuilder pooled(GenericObjectPoolConfig<Channel> channelPoolConfig) {
-        this.channelPoolConfig = channelPoolConfig;
+    public RabbitBuilder pooled(Consumer<GenericObjectPoolConfig<Channel>> channelPoolConfigurator) {
+        initializeChannelPoolConfigurator();
+        this.channelPoolConfigurator = this.channelPoolConfigurator.andThen(channelPoolConfigurator);
         return this;
+    }
+
+    private void initializeChannelPoolConfigurator() {
+        if (this.channelPoolConfigurator == null) {
+            this.channelPoolConfigurator = config -> {
+                config.setTestOnReturn(true);
+                config.setTestOnBorrow(true);
+                config.setTestWhileIdle(true);
+            };
+        }
     }
 
     /**
@@ -130,29 +150,39 @@ public class RabbitBuilder {
      * @return a Rabbit instance
      */
     public CompletableFuture<Rabbit> build() {
-        ExecutorService executor = Executors.newCachedThreadPool(this.threadFactory);
-        if (this.channelPoolConfig != null) {
-            this.channelPoolConfig.setTestOnReturn(true);
-            this.channelPoolConfig.setTestOnBorrow(true);
-            this.channelPoolConfig.setTestWhileIdle(true);
-        }
-
         CompletableFuture<Rabbit> future = new CompletableFuture<>();
+        Executor executor = Objects.requireNonNullElseGet(
+                this.executor, () -> Executors.newCachedThreadPool(SharedThreadFactory.INSTANCE));
         executor.execute(() -> {
-            Connection connection;
             try {
-                connection = this.connectionFactory.newConnection();
-            } catch (IOException | TimeoutException e) {
+                Rabbit compiled = buildRabbitInternal(executor);
+                future.complete(compiled);
+            } catch (Throwable e) {
                 future.completeExceptionally(e);
-                return;
-            }
-
-            if (this.channelPoolConfig != null) {
-                future.complete(new RabbitImplPooled(connection, executor, this.codecRegistry, this.channelPoolConfig));
-            } else {
-                future.complete(new RabbitImpl(connection, executor, this.codecRegistry));
             }
         });
         return future;
+    }
+
+    private Rabbit buildRabbitInternal(Executor executor) throws IOException, TimeoutException {
+        @Nullable GenericObjectPoolConfig<Channel> channelPoolConfig;
+        if (this.channelPoolConfigurator != null) {
+            channelPoolConfig = new GenericObjectPoolConfig<>();
+            this.channelPoolConfigurator.accept(channelPoolConfig);
+        } else {
+            channelPoolConfig = null;
+        }
+
+        ConnectionFactory connectionFactory = new ConnectionFactory();
+        if (this.connectionFactoryConfigurator != null) {
+            this.connectionFactoryConfigurator.accept(connectionFactory);
+        }
+
+        Connection connection = connectionFactory.newConnection();
+        if (channelPoolConfig != null) {
+            return new RabbitImplPooled(connection, executor, this.codecRegistry, channelPoolConfig);
+        } else {
+            return new RabbitImpl(connection, executor, this.codecRegistry);
+        }
     }
 }

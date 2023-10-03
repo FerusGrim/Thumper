@@ -27,7 +27,7 @@ package xyz.ferus.thumper.internal;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
 import java.io.IOException;
-import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executor;
 import org.checkerframework.checker.nullness.qual.MonotonicNonNull;
 import xyz.ferus.thumper.RabbitException;
 import xyz.ferus.thumper.codec.CodecRegistry;
@@ -38,7 +38,7 @@ public class RabbitImpl extends AbstractRabbitImpl {
 
     private final Object channelLock = new Object();
 
-    public RabbitImpl(Connection connection, ExecutorService executor, CodecRegistry codecRegistry) {
+    public RabbitImpl(Connection connection, Executor executor, CodecRegistry codecRegistry) {
         super(connection, executor, codecRegistry);
     }
 

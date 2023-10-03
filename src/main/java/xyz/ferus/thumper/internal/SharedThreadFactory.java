@@ -28,7 +28,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class SharedThreadFactory implements ThreadFactory {
+public enum SharedThreadFactory implements ThreadFactory {
+    INSTANCE;
+
     private final AtomicInteger threadCount = new AtomicInteger(0);
 
     @Override

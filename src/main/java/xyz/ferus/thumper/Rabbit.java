@@ -36,34 +36,34 @@ import xyz.ferus.thumper.exchange.TopicExchange;
 public interface Rabbit extends AutoCloseable {
 
     /**
-     * Creates a new direct queue with the given name.
-     * @param name the name of the queue
-     * @return a future that completes when the queue has been created
+     * Creates a new {@link DirectExchange} with the given name.
+     * @param name the name of the exchange
+     * @return a future that completes when the exchange has been created
      */
     CompletableFuture<DirectExchange> direct(String name);
 
     /**
-     * Creates a new topic queue with the given name.
-     * @param name the name of the queue
-     * @return a future that completes when the queue has been created
+     * Creates a new {@link TopicExchange} with the given name.
+     * @param name the name of the exchange
+     * @return a future that completes when the exchange has been created
      */
     CompletableFuture<TopicExchange> topic(String name);
 
     /**
-     * Creates a new fanout queue with the given name.
-     * @param name the name of the queue
-     * @return a future that completes when the queue has been created
+     * Creates a new {@link FanoutExchange} with the given name.
+     * @param name the name of the exchange
+     * @return a future that completes when the exchange has been created
      */
     CompletableFuture<FanoutExchange> fanout(String name);
 
     /**
-     * Gets the codec registry for this Rabbit instance.
+     * Gets the {@link CodecRegistry} for this Rabbit instance.
      * @return the codec registry for this Rabbit instance
      */
     CodecRegistry codecs();
 
     /**
-     * Creates a builder for a Rabbit instance.
+     * Creates a {@link RabbitBuilder} for a Rabbit instance.
      * @return a builder for a Rabbit instance
      */
     static RabbitBuilder builder() {
