@@ -3,6 +3,8 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+src/main/java/xyz/ferus/thumper/example/
+
 ### IntelliJ IDEA ###
 .idea/
 *.iws
