@@ -24,6 +24,7 @@
  */
 package xyz.ferus.thumper.internal.exchange;
 
+import com.rabbitmq.client.BuiltinExchangeType;
 import java.util.concurrent.CompletableFuture;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import xyz.ferus.thumper.codec.Codec;
@@ -39,9 +40,14 @@ public class FanoutExchangeImpl extends AbstractExchangeImpl implements FanoutEx
     }
 
     @Override
+    protected BuiltinExchangeType type() {
+        return BuiltinExchangeType.FANOUT;
+    }
+
+    @Override
     @SuppressWarnings({"unchecked", "rawtypes"})
     public CompletableFuture<@Nullable Void> publish(Object data) {
-        return this.rabbit().executeChannel(channel -> {
+        return this.rabbit().execute(channel -> {
             Codec codec = this.rabbit().codecs().get(data.getClass());
             channel.basicPublish(this.name(), "", null, codec.encode(data));
         });
@@ -49,7 +55,7 @@ public class FanoutExchangeImpl extends AbstractExchangeImpl implements FanoutEx
 
     @Override
     public CompletableFuture<FanoutQueue> newQueue() {
-        return this.rabbit().transformChannel(channel -> {
+        return this.rabbit().transform(channel -> {
             String queueName = channel.queueDeclare().getQueue();
             channel.queueBind(queueName, this.name(), "");
             return this.registerQueue(new FanoutQueueImpl(this.rabbit(), this, queueName));

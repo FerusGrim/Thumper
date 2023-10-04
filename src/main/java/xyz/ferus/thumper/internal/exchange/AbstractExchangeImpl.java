@@ -24,10 +24,13 @@
  */
 package xyz.ferus.thumper.internal.exchange;
 
+import com.rabbitmq.client.BuiltinExchangeType;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import xyz.ferus.thumper.exchange.Exchange;
+import xyz.ferus.thumper.exchange.ExchangeSettings;
 import xyz.ferus.thumper.internal.AbstractRabbitImpl;
 import xyz.ferus.thumper.internal.queue.AbstractQueueImpl;
 import xyz.ferus.thumper.internal.util.ExceptionCatcher;
@@ -54,6 +57,17 @@ public abstract class AbstractExchangeImpl implements Exchange {
         return this.name;
     }
 
+    @Override
+    public CompletableFuture<Void> declare(ExchangeSettings settings) {
+        return this.rabbit.execute(channel -> channel.exchangeDeclare(
+                this.name, type(), settings.durable(), settings.autoDelete(), settings.arguments()));
+    }
+
+    @Override
+    public CompletableFuture<Void> delete(boolean ifUnused) {
+        return this.rabbit.execute(channel -> channel.exchangeDelete(this.name, ifUnused));
+    }
+
     protected <T extends Queue> T registerQueue(T queue) {
         this.queues.add(queue);
         return queue;
@@ -62,6 +76,8 @@ public abstract class AbstractExchangeImpl implements Exchange {
     public void removeQueue(AbstractQueueImpl abstractQueue) {
         this.queues.remove(abstractQueue);
     }
+
+    protected abstract BuiltinExchangeType type();
 
     @Override
     public void close() throws Exception {

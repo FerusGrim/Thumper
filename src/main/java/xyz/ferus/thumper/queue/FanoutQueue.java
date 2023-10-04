@@ -24,9 +24,7 @@
  */
 package xyz.ferus.thumper.queue;
 
-import xyz.ferus.thumper.exchange.Exchange;
-
 /**
  * A fanout queue is a named entity that accepts messages from producers and routes them to all bound queues.
  */
-public interface FanoutQueue extends Exchange {}
+public interface FanoutQueue extends Queue {}

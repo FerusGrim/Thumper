@@ -33,6 +33,8 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import org.checkerframework.checker.nullness.qual.Nullable;
+import xyz.ferus.thumper.ChannelConsumer;
+import xyz.ferus.thumper.ChannelFunction;
 import xyz.ferus.thumper.Rabbit;
 import xyz.ferus.thumper.RabbitException;
 import xyz.ferus.thumper.codec.CodecRegistry;
@@ -69,13 +71,14 @@ public abstract class AbstractRabbitImpl implements Rabbit {
         return this.codecRegistry;
     }
 
-    public CompletableFuture<@Nullable Void> executeChannel(ChannelConsumer consumer) {
-        CompletableFuture<@Nullable Void> future = new CompletableFuture<>();
+    @Override
+    public <R> CompletableFuture<R> transform(ChannelFunction<R> function) {
+        CompletableFuture<R> future = new CompletableFuture<>();
         this.executor.execute(() -> {
             try {
                 Channel channel = provideChannel();
-                consumer.accept(channel);
-                future.complete(null);
+                R result = function.apply(channel);
+                future.complete(result);
             } catch (Exception e) {
                 future.completeExceptionally(e);
             }
@@ -83,13 +86,14 @@ public abstract class AbstractRabbitImpl implements Rabbit {
         return future;
     }
 
-    public <R> CompletableFuture<R> transformChannel(ChannelFunction<R> function) {
-        CompletableFuture<R> future = new CompletableFuture<>();
+    @Override
+    public CompletableFuture<@Nullable Void> execute(ChannelConsumer consumer) {
+        CompletableFuture<@Nullable Void> future = new CompletableFuture<>();
         this.executor.execute(() -> {
             try {
                 Channel channel = provideChannel();
-                R result = function.apply(channel);
-                future.complete(result);
+                consumer.accept(channel);
+                future.complete(null);
             } catch (Exception e) {
                 future.completeExceptionally(e);
             }
@@ -131,32 +135,23 @@ public abstract class AbstractRabbitImpl implements Rabbit {
     }
 
     @Override
-    public CompletableFuture<DirectExchange> direct(String name) {
-        return transformChannel(channel -> {
-            DirectExchangeImpl exchange = new DirectExchangeImpl(this, name);
-            channel.exchangeDeclare(name, "direct");
-            AbstractRabbitImpl.this.exchanges.add(exchange);
-            return exchange;
-        });
+    public DirectExchange direct(String name) {
+        DirectExchangeImpl exchange = new DirectExchangeImpl(this, name);
+        this.exchanges.add(exchange);
+        return exchange;
     }
 
     @Override
-    public CompletableFuture<TopicExchange> topic(String name) {
-        return transformChannel(channel -> {
-            TopicExchangeImpl exchange = new TopicExchangeImpl(this, name);
-            channel.exchangeDeclare(name, "topic");
-            AbstractRabbitImpl.this.exchanges.add(exchange);
-            return exchange;
-        });
+    public TopicExchange topic(String name) {
+        TopicExchangeImpl exchange = new TopicExchangeImpl(this, name);
+        this.exchanges.add(exchange);
+        return exchange;
     }
 
     @Override
-    public CompletableFuture<FanoutExchange> fanout(String name) {
-        return transformChannel(channel -> {
-            FanoutExchangeImpl exchange = new FanoutExchangeImpl(this, name);
-            channel.exchangeDeclare(name, "fanout");
-            AbstractRabbitImpl.this.exchanges.add(exchange);
-            return exchange;
-        });
+    public FanoutExchange fanout(String name) {
+        FanoutExchangeImpl exchange = new FanoutExchangeImpl(this, name);
+        this.exchanges.add(exchange);
+        return exchange;
     }
 }

@@ -25,6 +25,7 @@
 package xyz.ferus.thumper;
 
 import java.util.concurrent.CompletableFuture;
+import org.checkerframework.checker.nullness.qual.Nullable;
 import xyz.ferus.thumper.codec.CodecRegistry;
 import xyz.ferus.thumper.exchange.DirectExchange;
 import xyz.ferus.thumper.exchange.FanoutExchange;
@@ -36,25 +37,40 @@ import xyz.ferus.thumper.exchange.TopicExchange;
 public interface Rabbit extends AutoCloseable {
 
     /**
+     * Executes the given function on the RabbitMQ channel.
+     * @param function the function to execute
+     * @return a future that completes with the result of the function
+     * @param <R> the type of the result
+     */
+    <R> CompletableFuture<R> transform(ChannelFunction<R> function);
+
+    /**
+     * Executes the given consumer on the RabbitMQ channel.
+     * @param consumer the consumer to execute
+     * @return a future that completes when the consumer has finished
+     */
+    CompletableFuture<@Nullable Void> execute(ChannelConsumer consumer);
+
+    /**
      * Creates a new {@link DirectExchange} with the given name.
      * @param name the name of the exchange
-     * @return a future that completes when the exchange has been created
+     * @return the exchange
      */
-    CompletableFuture<DirectExchange> direct(String name);
+    DirectExchange direct(String name);
 
     /**
      * Creates a new {@link TopicExchange} with the given name.
      * @param name the name of the exchange
-     * @return a future that completes when the exchange has been created
+     * @return the exchange
      */
-    CompletableFuture<TopicExchange> topic(String name);
+    TopicExchange topic(String name);
 
     /**
      * Creates a new {@link FanoutExchange} with the given name.
      * @param name the name of the exchange
-     * @return a future that completes when the exchange has been created
+     * @return the exchange
      */
-    CompletableFuture<FanoutExchange> fanout(String name);
+    FanoutExchange fanout(String name);
 
     /**
      * Gets the {@link CodecRegistry} for this Rabbit instance.

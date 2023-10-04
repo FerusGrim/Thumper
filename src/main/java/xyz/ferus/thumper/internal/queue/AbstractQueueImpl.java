@@ -75,9 +75,8 @@ public abstract class AbstractQueueImpl implements Queue {
         subscriptions.forEach(subscription -> catcher.execute(subscription::close));
 
         catcher.execute(() -> this.exchange.removeQueue(this));
-        catcher.execute(() -> this.rabbit
-                .executeChannel(channel -> channel.queueDelete(this.name))
-                .join());
+        catcher.execute(() ->
+                this.rabbit.execute(channel -> channel.queueDelete(this.name)).join());
         catcher.validate();
     }
 
@@ -94,7 +93,7 @@ public abstract class AbstractQueueImpl implements Queue {
         }
 
         this.rabbit
-                .executeChannel(channel -> {
+                .execute(channel -> {
                     String newConsumerTag = registerConsumer(channel, type, consumer);
                     updating.channelChanged(channel, newConsumerTag);
                     this.subscriptions.put(newConsumerTag, updating);
@@ -104,7 +103,7 @@ public abstract class AbstractQueueImpl implements Queue {
 
     @Override
     public <T> CompletableFuture<Subscription> subscribe(Class<T> type, QueueConsumer<T> consumer) {
-        return this.rabbit().transformChannel(channel -> {
+        return this.rabbit().transform(channel -> {
             String consumerTag = registerConsumer(channel, type, consumer);
             SubscriptionImpl subscription = new SubscriptionImpl(this.rabbit, this, channel, consumerTag);
             this.subscriptions.put(consumerTag, subscription);

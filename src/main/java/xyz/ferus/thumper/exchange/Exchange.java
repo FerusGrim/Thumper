@@ -24,6 +24,8 @@
  */
 package xyz.ferus.thumper.exchange;
 
+import java.util.concurrent.CompletableFuture;
+
 /**
  * An exchange is a named entity that accepts messages from producers and routes them to message queues based on rules.
  */
@@ -34,4 +36,34 @@ public interface Exchange extends AutoCloseable {
      * @return the name of this exchange
      */
     String name();
+
+    /**
+     * Declares this exchange with the default settings.
+     * @return a future that completes when the exchange has been declared
+     */
+    default CompletableFuture<Void> declare() {
+        return declare(ExchangeSettings.defaultSettings());
+    }
+
+    /**
+     * Declares this exchange with the given settings.
+     * @param settings the settings for this exchange
+     * @return a future that completes when the exchange has been declared
+     */
+    CompletableFuture<Void> declare(ExchangeSettings settings);
+
+    /**
+     * Deletes this exchange.
+     * @return a future that completes when the exchange has been deleted
+     */
+    default CompletableFuture<Void> delete() {
+        return delete(false);
+    }
+
+    /**
+     * Deletes this exchange.
+     * @param ifUnused whether to delete the exchange if it is unused
+     * @return a future that completes when the exchange has been deleted
+     */
+    CompletableFuture<Void> delete(boolean ifUnused);
 }

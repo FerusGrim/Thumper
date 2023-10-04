@@ -22,11 +22,11 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
  * SOFTWARE.
  */
-package xyz.ferus.thumper.internal;
+package xyz.ferus.thumper;
 
 import com.rabbitmq.client.Channel;
 
 @FunctionalInterface
-public interface ChannelFunction<R> {
-    R apply(Channel channel) throws Exception;
+public interface ChannelConsumer {
+    void accept(Channel channel) throws Exception;
 }

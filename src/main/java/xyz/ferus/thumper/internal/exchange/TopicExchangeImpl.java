@@ -24,6 +24,7 @@
  */
 package xyz.ferus.thumper.internal.exchange;
 
+import com.rabbitmq.client.BuiltinExchangeType;
 import java.util.concurrent.CompletableFuture;
 import org.checkerframework.checker.nullness.qual.Nullable;
 import xyz.ferus.thumper.codec.Codec;
@@ -39,9 +40,14 @@ public class TopicExchangeImpl extends AbstractExchangeImpl implements TopicExch
     }
 
     @Override
+    protected BuiltinExchangeType type() {
+        return BuiltinExchangeType.TOPIC;
+    }
+
+    @Override
     @SuppressWarnings({"rawtypes", "unchecked"})
     public CompletableFuture<@Nullable Void> publish(String routingKey, Object data) {
-        return this.rabbit().executeChannel(channel -> {
+        return this.rabbit().execute(channel -> {
             Codec codec = this.rabbit().codecs().get(data.getClass());
             channel.basicPublish(this.name(), routingKey, null, codec.encode(data));
         });
@@ -49,7 +55,7 @@ public class TopicExchangeImpl extends AbstractExchangeImpl implements TopicExch
 
     @Override
     public CompletableFuture<TopicQueue> newQueue(String routingKey, String... otherRoutingKeys) {
-        return this.rabbit().transformChannel(channel -> {
+        return this.rabbit().transform(channel -> {
             String queueName = channel.queueDeclare().getQueue();
             String[] routingKeys = this.joinRoutingKeys(routingKey, otherRoutingKeys);
             for (String key : routingKeys) {
