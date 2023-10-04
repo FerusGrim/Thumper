@@ -27,16 +27,26 @@ public class Example {
             rabbit.codecs().register(new LoggingMessageCodec());
 
             // Create a direct exchange named "logging"
-            DirectExchange logging = rabbit.direct("logging").join();
+            DirectExchange logging = rabbit.direct("logging");
+
+            // Declare the exchange with the default settings
+            // If the exchange already exists, this is unnecessary
+            logging.declare().join();
 
             // Create a queue routed to the "info" key on the "logging" exchange
             DirectQueue infoQueue = logging.newQueue("info").join();
 
             // Subscribe to the info queue and print incoming messages
-            Subscription subscription = infoQueue.subscribe(LoggingMessage.class, message -> System.out.println("[INFO] " + message.message())).join();
+            Subscription subscription = infoQueue
+                    .subscribe(LoggingMessage.class, message -> System.out.println("[INFO] " + message.message()))
+                    .join();
 
             // Publish a message to the logging exchange routed to the "info" key
             logging.publish("info", new LoggingMessage("Hello World!")).join();
+
+            // Delete the exchange before closing the Rabbit instance
+            // This is separate from the AutoCloseable pattern because it's not a requirement
+            logging.delete().join();
         }
     }
 
@@ -60,4 +70,5 @@ public class Example {
         }
     }
 }
+
 ```
